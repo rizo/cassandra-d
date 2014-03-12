@@ -1,12 +1,13 @@
 {
 	"name": "cassandra-d",
 	"description": "Cassandra database client",
+	"targetType": "library",
 	"copyright": "Copyright © 2013, Rory McGuire",
 	"license": "MIT",
 	"authors": ["Rory McGuire"],
 	"dependencies": {
 		"vibe-d": {"version": "~master", "optional": true}
 	},
-	"targetType": "library",
 	"-ddoxFilterArgs": ["--min-protection=Protected", "--ex=cassandra.internal."]
 }
+

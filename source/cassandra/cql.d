@@ -1,3 +1,4 @@
+
 module cassandra.cql;
 
 import std.bitmanip : bitfields;
@@ -13,10 +14,13 @@ import std.stdio : writeln, writef, writefln;
 import cassandra.internal.utils;
 import cassandra.internal.tcpconnection;
 
+import std.string : icmp;
+
 // some types
 unittest {
 	assert(int.sizeof == 4, "int is not 32 bits"~ to!string(int.sizeof));
 }
+
 /*
  *                             CQL BINARY PROTOCOL v1
  *
@@ -117,11 +121,12 @@ struct FrameHeader {
 	 *    0x81    Response frame for this protocol version
 	 */
 	enum Version : ubyte {
-		V1Request = 0x01,
-		V1Response =  0x81,
-		V2Request = 0x02,
+		V1Request  = 0x01,
+		V1Response = 0x81,
+		V2Request  = 0x02,
 		V2Response = 0x82
 	}
+
 	Version version_;
 
 	/**
@@ -147,10 +152,11 @@ struct FrameHeader {
 	 *  The rest of the flags is currently unused and ignored.
 	 */
 	mixin(bitfields!(
-		bool,"compress", 1,
-		bool,"trace", 1,
-		uint, "", 6
-		));
+		bool, "compress", 1,
+		bool, "trace",    1,
+		uint, "",         6
+	));
+
 	bool hasTracing() { if (this.trace) return true; return false; }
 
 	/**2.3. stream
@@ -177,7 +183,18 @@ struct FrameHeader {
 	 *  the 128 maximum possible stream ids if it is simpler for those
 	 *  implementation.
 	 */
-	byte streamid; bool isServerStream() { if (streamid < 0) return true; return false; } bool isEvent() { if (streamid==-1) return true; return false;}
+
+	byte streamid;
+
+    bool isServerStream()
+    {
+        return (streamid < 0) ? true : false;
+    }
+    
+    bool isEvent()
+    {
+        return (streamid == -1) ? ture : false;
+    }
 
 	/**2.4. opcode
 	 *
@@ -213,20 +230,22 @@ struct FrameHeader {
 		REGISTER,
 		EVENT
 	};
+
 	OpCode opcode;
-	bool isERROR() { if (opcode == OpCode.ERROR) return true; return false; }
-	bool isSTARTUP() { if (opcode == OpCode.STARTUP) return true; return false; }
-	bool isREADY() { if (opcode == OpCode.READY) return true; return false; }
+
+	bool isERROR()        { if (opcode == OpCode.ERROR) return true; return false; }
+	bool isSTARTUP()      { if (opcode == OpCode.STARTUP) return true; return false; }
+	bool isREADY()        { if (opcode == OpCode.READY) return true; return false; }
 	bool isAUTHENTICATE() { if (opcode == OpCode.AUTHENTICATE) return true; return false; }
-	bool isCREDENTIALS() { if (opcode == OpCode.CREDENTIALS) return true; return false; }
-	bool isOPTIONS() { if (opcode == OpCode.OPTIONS) return true; return false; }
-	bool isSUPPORTED() { if (opcode == OpCode.SUPPORTED) return true; return false; }
-	bool isQUERY() { if (opcode == OpCode.QUERY) return true; return false; }
-	bool isRESULT() { if (opcode == OpCode.RESULT) return true; return false; }
-	bool isPREPARE() { if (opcode == OpCode.PREPARE) return true; return false; }
-	bool isEXECUTE() { if (opcode == OpCode.EXECUTE) return true; return false; }
-	bool isREGISTER() { if (opcode == OpCode.REGISTER) return true; return false; }
-	bool isEVENT() { if (opcode == OpCode.EVENT) return true; return false; }
+	bool isCREDENTIALS()  { if (opcode == OpCode.CREDENTIALS) return true; return false; }
+	bool isOPTIONS()      { if (opcode == OpCode.OPTIONS) return true; return false; }
+	bool isSUPPORTED()    { if (opcode == OpCode.SUPPORTED) return true; return false; }
+	bool isQUERY()        { if (opcode == OpCode.QUERY) return true; return false; }
+	bool isRESULT()       { if (opcode == OpCode.RESULT) return true; return false; }
+	bool isPREPARE()      { if (opcode == OpCode.PREPARE) return true; return false; }
+	bool isEXECUTE()      { if (opcode == OpCode.EXECUTE) return true; return false; }
+	bool isREGISTER()     { if (opcode == OpCode.REGISTER) return true; return false; }
+	bool isEVENT()        { if (opcode == OpCode.EVENT) return true; return false; }
 
 
 	/**
@@ -238,7 +257,8 @@ struct FrameHeader {
 	int length;
 
 
-	ubyte[] bytes() {
+	ubyte[] bytes()
+    {
 		import std.bitmanip : write;
 		import std.array : appender;
 		auto buffer = appender!(ubyte[])();
@@ -254,33 +274,40 @@ struct FrameHeader {
 }
 
 
-private int getIntLength(Appender!(ubyte[]) appender) {
+private int getIntLength(Appender!(ubyte[]) appender)
+{
 	assert(appender.data.length < int.max);
 	return cast(int)appender.data.length;
 }
 
-private FrameHeader readFrameHeader(TCPConnection s, ref int counter) {
+
+private FrameHeader
+readFrameHeader(TCPConnection s, ref int counter)
+{
 	assert(counter == 0, to!string(counter) ~" bytes unread from last Frame");
+
 	counter = int.max;
-	writefln("===================read frame header========================");
+
 	auto fh = FrameHeader();
-	fh.version_ = cast(FrameHeader.Version)readByte(s, counter);
+	fh.version_ = cast(FrameHeader.Version) readByte(s, counter);
 	readByte(s, counter); // FIXME: this should load into flags
 	fh.streamid = readByte(s, counter);
 	fh.opcode = cast(FrameHeader.OpCode)readByte(s, counter);
 	readIntNotNULL(fh.length, s, counter);
 
 	counter = fh.length;
-	writefln("=================== end read frame header===================");
-	//writefln("go %d data to play", counter);
-
 	return fh;
 }
-private byte readByte(TCPConnection s, ref int counter) {
+
+private byte
+readByte(TCPConnection s, ref int counter)
+{
 	ubyte[1] buf;
+
 	auto tmp = buf[0..$];
 	s.read(tmp);
 	counter--;
+
 	return buf[0];
 }
 
@@ -732,6 +759,7 @@ private StringMultiMap readStringMultiMap(TCPConnection s, ref int counter) {
 }
 
 class Connection {
+
 	private {
 		TCPConnection sock;
 		string m_host;
@@ -747,18 +775,23 @@ class Connection {
 		m_port = port;
 	}
 
-	void connect() {
-		if (!sock || !sock.connected) {
-			writeln("connecting");
+	void connect()
+    {
+		if (! sock || ! sock.connected) {
+			log("Connecting...");
+
 			sock = connectTCP(m_host, m_port);
-			writeln("connected. doing handshake...");
+			log("Connected. Doing handshake...");
+
 			startup();
-			writeln("handshake completed.");
+			log("Handshake completed.");
+
 			m_usedKeyspace = null;
 		}
 	}
 
-	void close() {
+	void close()
+    {
 		if (counter > 0) {
 			auto buf = readRawBytes(sock, counter, counter);
 			writeln("buf:", buf);
@@ -896,65 +929,81 @@ class Connection {
 	}
 
 	/**
-	 *4.1.3. OPTIONS
+	 * 4.1.3. OPTIONS
 	 *
-	 *  Asks the server to return what STARTUP options are supported. The body of an
-	 *  OPTIONS message should be empty and the server will respond with a SUPPORTED
-	 *  message.
+	 * Asks the server to return what STARTUP options are supported. The body of an
+	 * OPTIONS message should be empty and the server will respond with a SUPPORTED
+	 * message.
 	 */
-	StringMultiMap requestOptions() {
+	StringMultiMap requestOptions()
+    {
 		connect();
+
 		auto fh = makeHeader(FrameHeader.OpCode.OPTIONS);
 		write(sock, appender!(ubyte[])().append(fh.bytes));
+
 		fh = readFrameHeader(sock, counter);
-		if (!fh.isSUPPORTED) {
-			throw new Exception("CQLProtocolException, Unknown response to OPTIONS request");
+		if (! fh.isSUPPORTED) {
+			throw new Exception(
+                "CQLProtocolException, Unknown response to OPTIONS request");
 		}
+
 		return readSupported(fh);
 	}
 
-	 /**
-	 *4.1.4. QUERY
+	/**
+	 * 4.1.4. QUERY
 	 *
-	 *  Performs a CQL query. The body of the message consists of a CQL query as a [long
-	 *  string] followed by the [consistency] for the operation.
+	 * Performs a CQL query. The body of the message consists of a CQL query as a [long
+	 * string] followed by the [consistency] for the operation.
 	 *
-	 *  Note that the consistency is ignored by some queries (USE, CREATE, ALTER,
-	 *  TRUNCATE, ...).
+	 * Note that the consistency is ignored by some queries (USE, CREATE, ALTER,
+	 * TRUNCATE, ...).
 	 *
-	 *  The server will respond to a QUERY message with a RESULT message, the content
-	 *  of which depends on the query.
+	 * The server will respond to a QUERY message with a RESULT message, the content
+	 * of which depends on the query.
 	 */
-	Result query(string q, Consistency consistency) {
+	Result query(string q, Consistency consistency)
+    {
 		connect();
+
 		auto fh = makeHeader(FrameHeader.OpCode.QUERY);
+
 		auto bytebuf = appender!(ubyte[])();
-		writeln("-----------");
 		bytebuf.appendLongString(q);
-		//print(bytebuf.data);
-		writeln("-----------");
 		bytebuf.append(consistency);
 		fh.length = bytebuf.getIntLength;
+
 		write(sock, appender!(ubyte[])().append(fh.bytes));
 		write(sock, bytebuf);
 
 		fh = readFrameHeader(sock, counter);
 		throwOnError(fh);
+
 		return new Result(fh);
 	}
-	bool insert(string q, Consistency consistency = Consistency.ANY) {
+
+
+	bool insert(string q, Consistency consistency = Consistency.ANY)
+    {
 		connect();
-		assert(q[0.."insert".length]=="INSERT");
+
+		assert(icmp(q[0.."insert".length], "INSERT") == 0);
+
 		auto res = query(q, consistency);
 		if (res.kind == Result.Kind.Void) {
 			return true;
 		}
+
 		throw new Exception("CQLProtocolException: expected void response to insert");
 	}
-	Result select(string q, Consistency consistency = Consistency.QUORUM) {
+
+
+	Result select(string q, Consistency consistency = Consistency.QUORUM)
+    {
 		connect();
-		import std.string : icmp;
-		assert(icmp(q[0.."select".length], "SELECT")==0);
+
+		assert(icmp(q[0.."select".length], "SELECT") == 0);
 		return query(q, consistency);
 	}
 
@@ -967,18 +1016,16 @@ class Connection {
 	 *  The server will respond with a RESULT message with a `prepared` kind (0x0004,
 	 *  see Section 4.2.5).
 	 */
-	PreparedStatement prepare(string q) {
+	PreparedStatement prepare(string q)
+    {
 		connect();
+
 		auto fh = makeHeader(FrameHeader.OpCode.PREPARE);
 		auto bytebuf = appender!(ubyte[])();
-		writeln("---------=-");
 		bytebuf.appendLongString(q);
 		fh.length = bytebuf.getIntLength;
 		write(sock, appender!(ubyte[])().append(fh.bytes));
 		write(sock, bytebuf);
-		writeln("---------=-");
-
-
 
 		fh = readFrameHeader(sock, counter);
 		throwOnError(fh);
@@ -1193,9 +1240,11 @@ class Connection {
 	 *
 	 *  The body for each kind (after the [int] kind) is defined below.
 	 */
-	class Result {
+	class Result
+    {
 		FrameHeader fh;
 		private Kind kind_;
+
 		Kind kind() { return kind_; }
 
 		this(FrameHeader fh) {
@@ -1270,12 +1319,25 @@ class Connection {
 		 *          <flags>. If present, it is composed of two [string] representing the
 		 *          (unique) keyspace name and table name the columns return are of.
 		 */
-		struct MetaData {
-			int flags; enum GLOBAL_TABLES_SPEC = 0x0001; @property bool hasGlobalTablesSpec() { return flags & MetaData.GLOBAL_TABLES_SPEC ? true : false; }
+		struct MetaData
+        {
+			int flags;
+            
+            enum GLOBAL_TABLES_SPEC = 0x0001;
+            
+            @property bool hasGlobalTablesSpec()
+            {
+                return flags & MetaData.GLOBAL_TABLES_SPEC ? true : false;
+            }
+
 			int columns_count;
+
 			string[2] global_table_spec;
+
 			ColumnSpecification[] column_specs;
 		}
+
+
 		MetaData readRowMetaData(FrameHeader fh) {
 			auto md = MetaData();
 			md.flags.readIntNotNULL(sock, counter);
@@ -1284,7 +1346,8 @@ class Connection {
 				md.global_table_spec[0] = readShortString(sock, counter);
 				md.global_table_spec[1] = readShortString(sock, counter);
 			}
-			md.column_specs = readColumnSpecifications(md.flags & MetaData.GLOBAL_TABLES_SPEC, md.columns_count);
+			md.column_specs = readColumnSpecifications(md.flags & MetaData.GLOBAL_TABLES_SPEC,
+                                                       md.columns_count);
 			writeln("got spec: ", md);
 			return md;
 		}
@@ -1383,6 +1446,7 @@ class Connection {
 			string name;
 			Option type;
 		}
+
 		protected auto readColumnSpecification(bool hasGlobalTablesSpec) {
 			ColumnSpecification ret;
 			if (!hasGlobalTablesSpec) {
@@ -1552,30 +1616,37 @@ class Connection {
 		}
 	}
 
-	class PreparedStatement : Result {
+	class PreparedStatement : Result
+    {
 		ubyte[] id;
 		Consistency consistency = Consistency.ANY;
 
-		this(FrameHeader fh) {
+		this(FrameHeader fh)
+        {
 			super(fh);
+
 			if (kind != Result.Kind.Prepared) {
 				throw new Exception("CQLProtocolException, Unknown result type for PREPARE command");
 			}
 		}
 
 		/// See section 4.2.5.4.
-		protected override void readPrepared(FrameHeader fh) {
+		protected override void readPrepared(FrameHeader fh)
+        {
 			assert(kind_ is Kind.Prepared);
+
 			id = readShortBytes(sock, counter);
 			metadata = readRowMetaData(fh);
 		}
 
-		Result execute(Args...)(Args args) {
+
+		Result execute(Args...)(Args args)
+        {
 			return Connection.execute(id, consistency, args);
 		}
 
-		override
-		string toString() {
+		override string toString()
+        {
 			return "PreparedStatement("~id.hex~")";
 		}
 	}
@@ -1750,7 +1821,9 @@ class Connection {
 	 *                               write was requested.
 	 */
 	 alias string WriteType;
-	 string toString(WriteType wt) {
+
+	 string toString(WriteType wt)
+     {
 		final switch (cast(string)wt) {
 			case "SIMPLE":
 				return "SIMPLE: the write was a non-batched non-counter write.";
@@ -1923,10 +1996,12 @@ string bestCassandraType(T)() {
 
 
 
-unittest {
-	auto cassandra = new Connection();
-	cassandra.connect("127.0.0.1", 9042);
-	scope(exit) cassandra.close();
+unittest
+{
+	auto cassandra = new Connection("127.0.0.1", 9042);
+	cassandra.connect();
+
+	scope (exit) cassandra.close();
 
 	auto opts = cassandra.requestOptions();
 	foreach (opt, values; opts) {
@@ -1941,7 +2016,8 @@ unittest {
 
 		try {
 			writefln("CREATE KEYSPACE twissandra");
-			auto res = cassandra.query(`CREATE KEYSPACE twissandra WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}`, Consistency.ANY);
+			auto res = cassandra.query(`CREATE KEYSPACE twissandra WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1}`,
+                    Consistency.ANY);
 			writefln("created %s %s %s", res.kind_, res.keyspace, res.lastchange);
 		} catch (Exception e) {writefln(e.msg);}
 	}
@@ -2059,3 +2135,4 @@ unittest {
 private void log(Args...)(string s, Args args) {
 	writefln(s, args);
 }
+
