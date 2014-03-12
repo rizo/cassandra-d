@@ -1,4 +1,3 @@
-
 module cassandra.cql;
 
 import std.bitmanip : bitfields;
@@ -193,7 +192,7 @@ struct FrameHeader {
     
     bool isEvent()
     {
-        return (streamid == -1) ? ture : false;
+        return (streamid == -1) ? true : false;
     }
 
 	/**2.4. opcode
